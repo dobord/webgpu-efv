@@ -291,7 +291,7 @@ export class WebGPURenderer {
 
     // Uniform buffer for field shader
     this.fieldUniformBuffer = this.device.createBuffer({
-      size: 48, // Increased to 48 bytes to meet WebGPU alignment requirements (minimum required by pipeline)
+      size: 64, // Increased to 64 bytes to meet WebGPU alignment requirements (minimum required by pipeline)
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
@@ -406,7 +406,7 @@ export class WebGPURenderer {
     }
 
     // Update field uniforms
-    const uniformData = new Float32Array(12); // 48 bytes / 4 = 12 floats (increased to match buffer size)
+    const uniformData = new Float32Array(16); // 64 bytes / 4 = 16 floats (increased to match buffer size)
     uniformData[0] = this.canvas.width;     // canvas.x
     uniformData[1] = this.canvas.height;    // canvas.y
     
@@ -416,7 +416,7 @@ export class WebGPURenderer {
     uint32View[1] = this.equipotentials.length;  // counts.y (numEquipotentials)
     
     uniformData[4] = this.equipotentialPrecision; // equipotentialPrecision
-    // uniformData[5-11] remain as padding for alignment
+    // uniformData[5-15] remain as padding for alignment
     this.device.queue.writeBuffer(this.fieldUniformBuffer, 0, uniformData);
 
     // Update charge storage buffer

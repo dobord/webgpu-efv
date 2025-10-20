@@ -29,7 +29,8 @@ struct Uniforms {
   equipotentialPrecision: f32, // (4 bytes)
   _padding1: f32,             // padding (4 bytes)
   _padding2: vec4f,           // padding (16 bytes)
-  _padding3: vec2f,           // padding (8 bytes) - Total: 48 bytes
+  _padding3: vec4f,           // padding (16 bytes)
+  _padding4: vec2f,           // padding (8 bytes) - Total: 64 bytes
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
