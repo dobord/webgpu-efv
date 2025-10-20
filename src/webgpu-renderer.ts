@@ -524,7 +524,7 @@ export class WebGPURenderer {
     const step = 5;
     const killZone = 4;
     const maxSteps = 200;
-    const color = [1, 1, 1, 0.1];
+    const color = [0.8, 0.8, 0.8, 0.6]; // Более яркие и заметные линии
 
     this.charges.forEach((charge) => {
       const numLines = Math.round(Math.abs(charge.q) / 20) + 3;
