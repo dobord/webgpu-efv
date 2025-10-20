@@ -24,14 +24,11 @@ struct Charge {
 }
 
 struct Uniforms {
-  canvas: vec2f,              // canvasWidth, canvasHeight (8 bytes)
-  counts: vec2u,              // numCharges, numEquipotentials (8 bytes)  
-  equipotentialPrecision: f32, // (4 bytes)
-  _padding1: f32,             // padding (4 bytes)
-  _padding2: vec4f,           // padding (16 bytes)
-  _padding3: vec4f,           // padding (16 bytes)
-  _padding4: vec4f,           // padding (16 bytes)
-  _padding5: vec2f,           // padding (8 bytes) - Total: 80 bytes
+  canvas: vec2f,              // 8 bytes, offset 0-7
+  counts: vec2u,              // 8 bytes, offset 8-15  
+  equipotentialPrecision: f32, // 4 bytes, offset 16-19
+  _padding1: f32,             // 4 bytes, offset 20-23 (выравнивание до 8 байт)
+  // Минимальный padding до кратности 16 байт = 32 байта всего
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
