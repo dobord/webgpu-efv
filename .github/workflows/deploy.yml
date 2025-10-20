@@ -26,6 +26,10 @@ jobs:
       - name: Build
         run: npm run build
       
+      - name: Copy additional files
+        run: |
+          cp *.md dist/ 2>/dev/null || true
+      
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

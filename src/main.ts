@@ -1,5 +1,52 @@
 import { WebGPURenderer, Charge } from './webgpu-renderer';
 
+// Early WebGPU check
+if (!navigator.gpu) {
+  document.body.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #1a1a1a;
+      color: white;
+      padding: 40px;
+      border-radius: 15px;
+      max-width: 600px;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    ">
+      <h2 style="color: #ff6b6b; margin-bottom: 20px;">⚠️ WebGPU Недоступен</h2>
+      <p style="margin-bottom: 20px; line-height: 1.6;">
+        Этому приложению требуется поддержка WebGPU, которая не обнаружена в вашем браузере.
+      </p>
+      <button onclick="location.reload()" style="
+        background: #4ecdc4;
+        color: #1a1a1a;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        margin: 10px 5px;
+      ">🔄 Перезагрузить страницу</button>
+      <button onclick="window.location.href='./fallback.html'" style="
+        background: #ffa500;
+        color: #1a1a1a;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        margin: 10px 5px;
+      ">🎨 Упрощенная версия</button>
+    </div>
+  `;
+  // Stop execution if WebGPU is not available
+  throw new Error('WebGPU not supported');
+}
+
 class ElectrostaticFieldVisualizer {
   private canvas: HTMLCanvasElement;
   private renderer!: WebGPURenderer;

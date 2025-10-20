@@ -7,5 +7,13 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        fallback: 'fallback.html',
+        diagnostic: 'diagnostic.html',
+        test: 'test-webgpu.html'
+      }
+    }
   },
 });
