@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Test</title>
+</head>
+<body>
+    <h1>WebGPU Buffer Size Test</h1>
+    <div id="status">Checking WebGPU...</div>
+    <canvas id="testCanvas" width="400" height="300"></canvas>
+    
+    <script>
+        async function testWebGPU() {
+            const statusDiv = document.getElementById('status');
+            
+            try {
+                if (!navigator.gpu) {
+                    statusDiv.innerHTML = 'WebGPU not supported';
+                    return;
+                }
+                
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    statusDiv.innerHTML = 'No WebGPU adapter found';
+                    return;
+                }
+                
+                const device = await adapter.requestDevice();
+                
+                // Test uniform buffer creation with our corrected size
+                const testBuffer = device.createBuffer({
+                    size: 32, // Our corrected size
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+                
+                // Test data structure
+                const testData = new Float32Array(8);
+                testData[0] = 800.0;  // canvas width
+                testData[1] = 600.0;  // canvas height
+                
+                const uint32View = new Uint32Array(testData.buffer, 8, 2);
+                uint32View[0] = 2;    // numCharges
+                uint32View[1] = 1;    // numEquipotentials
+                
+                testData[4] = 0.05;   // precision
+                
+                device.queue.writeBuffer(testBuffer, 0, testData);
+                
+                statusDiv.innerHTML = 'WebGPU buffer test passed! Size: 32 bytes, Data written successfully.';
+                statusDiv.style.color = 'green';
+                
+                testBuffer.destroy();
+                
+            } catch (error) {
+                statusDiv.innerHTML = `Error: ${error.message}`;
+                statusDiv.style.color = 'red';
+                console.error('WebGPU test failed:', error);
+            }
+        }
+        
+        testWebGPU();
+    </script>
+</body>
+</html>

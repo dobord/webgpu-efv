@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electrostatic Field Visualizer - Canvas Fallback</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: white;
+    }
+    
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    #info {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
+    }
+    
+    #controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 10px;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      backdrop-filter: blur(10px);
+    }
+    
+    button {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  
+  <div id="info">
+    <h3>Canvas 2D Fallback Demo</h3>
+    <p><strong>Click:</strong> Add positive charge</p>
+    <p><strong>Right-click:</strong> Add negative charge</p>
+    <p>This is a simplified version using Canvas 2D</p>
+    <p>For full WebGPU features, enable WebGPU in your browser</p>
+  </div>
+
+  <div id="controls">
+    <button id="clearBtn">Clear All</button>
+    <button id="addPositive">Add +</button>
+    <button id="addNegative">Add -</button>
+  </div>
+
+  <script>
+    class SimpleFieldVisualizer {
+      constructor() {
+        this.canvas = document.getElementById('canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.charges = [];
+        this.animationId = null;
+        
+        this.resizeCanvas();
+        this.setupEventListeners();
+        this.startRenderLoop();
+        
+        // Add some initial charges
+        this.charges.push(
+          { x: 200, y: 200, q: 100 },
+          { x: -200, y: -100, q: -100 }
+        );
+      }
+      
+      resizeCanvas() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+      }
+      
+      setupEventListeners() {
+        window.addEventListener('resize', () => this.resizeCanvas());
+        
+        this.canvas.addEventListener('click', (e) => {
+          const pos = this.getCanvasCoordinates(e.clientX, e.clientY);
+          this.charges.push({ x: pos.x, y: pos.y, q: 100 });
+        });
+        
+        this.canvas.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          const pos = this.getCanvasCoordinates(e.clientX, e.clientY);
+          this.charges.push({ x: pos.x, y: pos.y, q: -100 });
+        });
+        
+        document.getElementById('clearBtn').addEventListener('click', () => {
+          this.charges = [];
+        });
+        
+        document.getElementById('addPositive').addEventListener('click', () => {
+          this.charges.push({ x: Math.random() * 400 - 200, y: Math.random() * 400 - 200, q: 100 });
+        });
+        
+        document.getElementById('addNegative').addEventListener('click', () => {
+          this.charges.push({ x: Math.random() * 400 - 200, y: Math.random() * 400 - 200, q: -100 });
+        });
+      }
+      
+      getCanvasCoordinates(clientX, clientY) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+          x: clientX - rect.left - this.canvas.width / 2,
+          y: this.canvas.height / 2 - (clientY - rect.top),
+        };
+      }
+      
+      calculatePotential(x, y) {
+        let phi = 0;
+        for (const charge of this.charges) {
+          const dx = x - charge.x;
+          const dy = y - charge.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          phi += charge.q / Math.max(dist, 1);
+        }
+        return phi;
+      }
+      
+      potentialToColor(phi) {
+        const normalized = Math.tanh(phi / 100);
+        if (normalized > 0) {
+          return `rgb(${Math.floor(255 * normalized)}, 0, 0)`;
+        } else {
+          return `rgb(0, 0, ${Math.floor(255 * -normalized)})`;
+        }
+      }
+      
+      render() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Save context for coordinate transformation
+        this.ctx.save();
+        this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        this.ctx.scale(1, -1); // Flip Y axis
+        
+        // Draw field (simplified - just a grid of colored points)
+        const step = 20;
+        const halfWidth = this.canvas.width / 2;
+        const halfHeight = this.canvas.height / 2;
+        
+        for (let x = -halfWidth; x < halfWidth; x += step) {
+          for (let y = -halfHeight; y < halfHeight; y += step) {
+            const phi = this.calculatePotential(x, y);
+            this.ctx.fillStyle = this.potentialToColor(phi);
+            this.ctx.fillRect(x, y, step, step);
+          }
+        }
+        
+        // Draw charges
+        for (const charge of this.charges) {
+          this.ctx.beginPath();
+          this.ctx.arc(charge.x, charge.y, 15, 0, 2 * Math.PI);
+          this.ctx.fillStyle = charge.q > 0 ? '#ff6b6b' : '#4ecdc4';
+          this.ctx.fill();
+          this.ctx.strokeStyle = 'white';
+          this.ctx.lineWidth = 2;
+          this.ctx.stroke();
+          
+          // Draw charge symbol
+          this.ctx.save();
+          this.ctx.scale(1, -1); // Flip text back
+          this.ctx.fillStyle = 'white';
+          this.ctx.font = 'bold 16px Arial';
+          this.ctx.textAlign = 'center';
+          this.ctx.fillText(charge.q > 0 ? '+' : '-', charge.x, -charge.y + 6);
+          this.ctx.restore();
+        }
+        
+        this.ctx.restore();
+      }
+      
+      startRenderLoop() {
+        const loop = () => {
+          this.render();
+          this.animationId = requestAnimationFrame(loop);
+        };
+        loop();
+      }
+      
+      destroy() {
+        if (this.animationId) {
+          cancelAnimationFrame(this.animationId);
+        }
+      }
+    }
+    
+    // Initialize the visualizer
+    const visualizer = new SimpleFieldVisualizer();
+  </script>
+</body>
+</html>

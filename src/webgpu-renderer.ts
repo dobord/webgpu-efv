@@ -46,18 +46,53 @@ export class WebGPURenderer {
   }
 
   async init(): Promise<void> {
-    // Check WebGPU support
+    // Check WebGPU support with detailed error messages
     if (!navigator.gpu) {
-      throw new Error('WebGPU is not supported in this browser');
+      const userAgent = navigator.userAgent;
+      let browserInfo = 'Unknown browser';
+      
+      if (userAgent.includes('Chrome')) {
+        const chromeMatch = userAgent.match(/Chrome\/(\d+)/);
+        const version = chromeMatch ? chromeMatch[1] : 'unknown';
+        browserInfo = `Chrome ${version}`;
+        if (parseInt(version) < 113) {
+          throw new Error(`WebGPU требует Chrome 113+ (текущая версия: ${version}). Пожалуйста, обновите браузер.`);
+        }
+      } else if (userAgent.includes('Firefox')) {
+        browserInfo = 'Firefox';
+        throw new Error('WebGPU в Firefox находится в экспериментальной стадии. Рекомендуется использовать Chrome 113+ или Edge 113+.');
+      } else if (userAgent.includes('Safari')) {
+        browserInfo = 'Safari';
+        throw new Error('WebGPU в Safari находится в экспериментальной стадии. Рекомендуется использовать Chrome 113+ или Edge 113+.');
+      } else if (userAgent.includes('Edge')) {
+        const edgeMatch = userAgent.match(/Edg\/(\d+)/);
+        const version = edgeMatch ? edgeMatch[1] : 'unknown';
+        browserInfo = `Edge ${version}`;
+        if (parseInt(version) < 113) {
+          throw new Error(`WebGPU требует Edge 113+ (текущая версия: ${version}). Пожалуйста, обновите браузер.`);
+        }
+      }
+      
+      throw new Error(`WebGPU не поддерживается в ${browserInfo}. Рекомендуемые браузеры: Chrome 113+, Edge 113+. Убедитесь, что WebGPU включен в настройках браузера.`);
     }
 
     // Get GPU adapter and device
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) {
-      throw new Error('Failed to get GPU adapter');
+      throw new Error('Не удалось получить GPU адаптер. Возможно, ваша видеокарта не поддерживает WebGPU или драйверы устарели.');
     }
 
-    this.device = await adapter.requestDevice();
+    try {
+      this.device = await adapter.requestDevice();
+    } catch (error) {
+      if (error instanceof DOMException) {
+        if (error.message.includes('blocklist') || error.message.includes('blocked')) {
+          throw new Error('WebGPU заблокирован системой безопасности браузера или списком блокировки. Возможные причины:\n\n• Устаревшие драйверы видеокарты\n• Несовместимая видеокарта\n• Система безопасности предприятия\n• Экспериментальные флаги отключены\n\nПопробуйте:\n1. Обновить драйверы видеокарты\n2. Включить "Unsafe WebGPU Support" в chrome://flags\n3. Использовать упрощенную версию приложения');
+        }
+      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Ошибка инициализации WebGPU устройства: ${errorMessage}`);
+    }
 
     // Configure canvas context
     this.context = this.canvas.getContext('webgpu')!;
@@ -256,7 +291,7 @@ export class WebGPURenderer {
 
     // Uniform buffer for field shader
     this.fieldUniformBuffer = this.device.createBuffer({
-      size: 32, // canvasWidth(4) + canvasHeight(4) + numCharges(4) + numEquipotentials(4) + precision(4) + padding(12)
+      size: 32, // vec2f canvas (8) + vec2u counts (8) + f32 precision (4) + vec3f padding (12) = 32 bytes
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
@@ -306,6 +341,12 @@ export class WebGPURenderer {
   }
 
   private updateMatrices(): void {
+    // Check if device is available before using it
+    if (!this.device) {
+      console.warn('WebGPU device not available, skipping matrix update');
+      return;
+    }
+
     const width = this.canvas.width;
     const height = this.canvas.height;
 
@@ -320,35 +361,62 @@ export class WebGPURenderer {
     mat4.identity(this.viewMatrix);
     mat4.translate(this.viewMatrix, this.viewMatrix, [0, 0, -10]);
 
-    // Update uniform buffer
-    const matrices = new Float32Array(32);
-    matrices.set(this.projectionMatrix, 0);
-    matrices.set(this.viewMatrix, 16);
-    this.device.queue.writeBuffer(this.geometryUniformBuffer, 0, matrices);
+    // Update uniform buffer only if available
+    if (this.geometryUniformBuffer) {
+      const matrices = new Float32Array(32);
+      matrices.set(this.projectionMatrix, 0);
+      matrices.set(this.viewMatrix, 16);
+      this.device.queue.writeBuffer(this.geometryUniformBuffer, 0, matrices);
+    }
   }
 
   setCharges(charges: Charge[]): void {
+    if (!this.device) {
+      console.warn('WebGPU device not available, skipping setCharges');
+      return;
+    }
     this.charges = charges;
   }
 
   setEquipotentials(equipotentials: number[]): void {
+    if (!this.device) {
+      console.warn('WebGPU device not available, skipping setEquipotentials');
+      return;
+    }
     this.equipotentials = equipotentials;
   }
 
   resize(width: number, height: number): void {
+    // Check if device is available before resizing
+    if (!this.device) {
+      console.warn('WebGPU device not available, skipping resize');
+      return;
+    }
+
     this.canvas.width = width;
     this.canvas.height = height;
     this.updateMatrices();
   }
 
   render(showCharges: boolean, showLines: boolean): void {
+    // Check if device is available before rendering
+    if (!this.device || !this.fieldUniformBuffer || !this.chargeStorageBuffer) {
+      console.warn('WebGPU not properly initialized, skipping render');
+      return;
+    }
+
     // Update field uniforms
-    const uniformData = new Float32Array(8);
-    uniformData[0] = this.canvas.width;
-    uniformData[1] = this.canvas.height;
-    uniformData[2] = this.charges.length;
-    uniformData[3] = this.equipotentials.length;
-    uniformData[4] = this.equipotentialPrecision;
+    const uniformData = new Float32Array(8); // 32 bytes / 4 = 8 floats
+    uniformData[0] = this.canvas.width;     // canvas.x
+    uniformData[1] = this.canvas.height;    // canvas.y
+    
+    // For vec2u we need to be careful with the data types
+    const uint32View = new Uint32Array(uniformData.buffer, 8, 2); // offset 8 bytes, 2 uints
+    uint32View[0] = this.charges.length;         // counts.x (numCharges)
+    uint32View[1] = this.equipotentials.length;  // counts.y (numEquipotentials)
+    
+    uniformData[4] = this.equipotentialPrecision; // equipotentialPrecision
+    // uniformData[5-7] remain as padding
     this.device.queue.writeBuffer(this.fieldUniformBuffer, 0, uniformData);
 
     // Update charge storage buffer

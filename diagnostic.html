@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Diagnostic Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status-card {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #4ecdc4;
+        }
+        .error {
+            border-left-color: #ff6b6b;
+        }
+        .warning {
+            border-left-color: #ffa500;
+        }
+        .success {
+            border-left-color: #4ecdc4;
+        }
+        code {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: Monaco, Consolas, monospace;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+            background: #333;
+        }
+        button {
+            background: #4ecdc4;
+            color: #1a1a1a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45b7b8;
+        }
+        .link-button {
+            background: #ffa500;
+        }
+        .link-button:hover {
+            background: #ff9ff3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 WebGPU Diagnostic Tool</h1>
+        <p>Эта страница поможет диагностировать проблемы с WebGPU</p>
+        
+        <div id="status-container">
+            <div class="status-card">
+                <h3>⏳ Проверка...</h3>
+                <p>Проверяется поддержка WebGPU...</p>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h3>🔧 Быстрые действия</h3>
+            <button onclick="testWebGPU()">🔄 Перетестировать</button>
+            <button onclick="window.location.href='/'">🏠 Главная страница</button>
+            <button onclick="window.location.href='/fallback.html'" class="link-button">🎨 Fallback версия</button>
+        </div>
+    </div>
+
+    <script>
+        async function testWebGPU() {
+            const container = document.getElementById('status-container');
+            container.innerHTML = '<div class="status-card"><h3>⏳ Тестирование...</h3></div>';
+            
+            const results = [];
+            
+            // Тест 1: Базовая поддержка
+            if (!navigator.gpu) {
+                results.push({
+                    title: '❌ WebGPU API недоступен',
+                    status: 'error',
+                    message: 'navigator.gpu не найден в этом браузере',
+                    solution: 'Используйте Chrome 113+, Edge 113+ или Firefox с включенным WebGPU'
+                });
+            } else {
+                results.push({
+                    title: '✅ WebGPU API найден',
+                    status: 'success',
+                    message: 'navigator.gpu доступен'
+                });
+                
+                // Тест 2: Получение адаптера
+                try {
+                    const adapter = await navigator.gpu.requestAdapter();
+                    if (!adapter) {
+                        results.push({
+                            title: '❌ GPU адаптер недоступен',
+                            status: 'error',
+                            message: 'requestAdapter() вернул null',
+                            solution: 'Обновите драйверы видеокарты или проверьте совместимость'
+                        });
+                    } else {
+                        results.push({
+                            title: '✅ GPU адаптер получен',
+                            status: 'success',
+                            message: 'Адаптер успешно создан'
+                        });
+                        
+                        // Получаем информацию об адаптере
+                        try {
+                            const info = await adapter.requestAdapterInfo();
+                            results.push({
+                                title: '🔍 Информация об адаптере',
+                                status: 'success',
+                                message: 'Вендор: ' + (info.vendor || 'Неизвестно') + ', Архитектура: ' + (info.architecture || 'Неизвестно')
+                            });
+                        } catch (e) {
+                            // requestAdapterInfo может быть недоступен
+                        }
+                        
+                        // Тест 3: Создание устройства
+                        try {
+                            const device = await adapter.requestDevice();
+                            results.push({
+                                title: '✅ WebGPU устройство создано',
+                                status: 'success',
+                                message: 'Device успешно инициализировано'
+                            });
+                            
+                            // Тест 4: Создание буфера
+                            try {
+                                const buffer = device.createBuffer({
+                                    size: 32,
+                                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                                });
+                                
+                                results.push({
+                                    title: '✅ Буфер создан успешно',
+                                    status: 'success',
+                                    message: 'Uniform буфер работает корректно'
+                                });
+                                
+                                buffer.destroy();
+                                
+                            } catch (bufferError) {
+                                results.push({
+                                    title: '⚠️ Ошибка создания буфера',
+                                    status: 'warning',
+                                    message: bufferError.message,
+                                    solution: 'Возможны проблемы с производительностью'
+                                });
+                            }
+                            
+                        } catch (deviceError) {
+                            let errorType = 'error';
+                            let solution = 'Попробуйте обновить драйверы видеокарты';
+                            
+                            if (deviceError.message.includes('blocklist') || deviceError.message.includes('blocked')) {
+                                solution = 'WebGPU заблокирован. Попробуйте: 1. Обновить драйверы видеокарты 2. Включить "Unsafe WebGPU Support" в chrome://flags 3. Проверить, что видеокарта поддерживает DirectX 12/Vulkan';
+                            }
+                            
+                            results.push({
+                                title: '❌ Ошибка создания устройства',
+                                status: 'error',
+                                message: deviceError.message,
+                                solution: solution
+                            });
+                        }
+                    }
+                } catch (adapterError) {
+                    results.push({
+                        title: '❌ Ошибка получения адаптера',
+                        status: 'error',
+                        message: adapterError.message,
+                        solution: 'Проверьте поддержку WebGPU и обновите браузер'
+                    });
+                }
+            }
+            
+            // Дополнительная информация
+            results.push({
+                title: '🔍 Информация о системе',
+                status: 'info',
+                message: 'Браузер: ' + navigator.userAgent + '<br>Платформа: ' + navigator.platform + '<br>WebGPU поддержка: ' + (!!navigator.gpu ? 'Есть' : 'Нет')
+            });
+            
+            displayResults(results);
+        }
+        
+        function displayResults(results) {
+            const container = document.getElementById('status-container');
+            container.innerHTML = '';
+            
+            results.forEach(result => {
+                const card = document.createElement('div');
+                card.className = 'status-card ' + result.status;
+                
+                let content = '<h3>' + result.title + '</h3><div class="test-result">' + result.message + '</div>';
+                
+                if (result.solution) {
+                    content += '<p><strong>Решение:</strong> ' + result.solution + '</p>';
+                }
+                
+                card.innerHTML = content;
+                container.appendChild(card);
+            });
+        }
+        
+        // Автоматический запуск теста при загрузке
+        testWebGPU();
+    </script>
+</body>
+</html>

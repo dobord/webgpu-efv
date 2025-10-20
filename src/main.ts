@@ -293,15 +293,18 @@ class ElectrostaticFieldVisualizer {
 
   private startRenderLoop(): void {
     const render = () => {
-      this.renderer.setCharges(this.charges);
-      
-      if (this.showEquipotentials) {
-        this.renderer.setEquipotentials(this.equipotentials);
-      } else {
-        this.renderer.setEquipotentials([]);
-      }
+      // Only render if renderer is properly initialized
+      if (this.renderer) {
+        this.renderer.setCharges(this.charges);
+        
+        if (this.showEquipotentials) {
+          this.renderer.setEquipotentials(this.equipotentials);
+        } else {
+          this.renderer.setEquipotentials([]);
+        }
 
-      this.renderer.render(this.showCharges, this.showLines);
+        this.renderer.render(this.showCharges, this.showLines);
+      }
       requestAnimationFrame(render);
     };
     render();
@@ -311,12 +314,109 @@ class ElectrostaticFieldVisualizer {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
     errorDiv.innerHTML = `
-      <h2>WebGPU Error</h2>
-      <p>${message}</p>
-      <p>Please make sure you're using a browser that supports WebGPU.</p>
-      <p>Recommended: Chrome 113+ or Edge 113+ with WebGPU enabled.</p>
+      <h2>WebGPU Ошибка</h2>
+      <p style="color: #ff6b6b; font-weight: bold;">${message}</p>
+      <div style="margin-top: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px;">
+        <h3>Как включить WebGPU:</h3>
+        <div style="margin: 10px 0;">
+          <strong>Chrome/Edge:</strong>
+          <ol>
+            <li>Откройте <code>chrome://flags</code> или <code>edge://flags</code></li>
+            <li>Найдите "Unsafe WebGPU" и включите его</li>
+            <li>Перезапустите браузер</li>
+          </ol>
+        </div>
+        <div style="margin: 10px 0;">
+          <strong>Альтернативные браузеры:</strong>
+          <ul>
+            <li>Chrome Canary с включенным WebGPU</li>
+            <li>Firefox Nightly с включенным <code>dom.webgpu.enabled</code></li>
+          </ul>
+        </div>
+        <div style="margin: 10px 0;">
+          <strong>Системные требования:</strong>
+          <ul>
+            <li>Современная видеокарта (DirectX 12 / Vulkan)</li>
+            <li>Обновленные драйверы видеокарты</li>
+            <li>Windows 10+, macOS 10.15+, или современный Linux</li>
+          </ul>
+        </div>
+      </div>
+      <div style="margin: 20px 0; text-align: center;">
+        <button onclick="window.location.href='/fallback.html'" style="
+          background: #4ecdc4;
+          color: #1a1a1a;
+          border: none;
+          padding: 15px 25px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 16px;
+          margin: 5px;
+        ">🎨 Попробовать упрощенную версию</button>
+        <button onclick="window.location.reload()" style="
+          background: #ffa500;
+          color: #1a1a1a;
+          border: none;
+          padding: 15px 25px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 16px;
+          margin: 5px;
+        ">🔄 Перезагрузить</button>
+      </div>
+      <div style="margin-top: 15px; font-size: 0.9em; color: #888;">
+        <strong>Техническая информация:</strong><br>
+        Браузер: ${navigator.userAgent}<br>
+        WebGPU доступен: ${!!navigator.gpu ? 'Да' : 'Нет'}
+      </div>
     `;
     document.body.appendChild(errorDiv);
+    
+    // Add some basic styling
+    const style = document.createElement('style');
+    style.textContent = `
+      .error-message {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #1a1a1a;
+        color: white;
+        padding: 30px;
+        border-radius: 12px;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        z-index: 10000;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
+      }
+      .error-message h2 {
+        margin-top: 0;
+        color: #ff6b6b;
+      }
+      .error-message h3 {
+        color: #4ecdc4;
+        margin-bottom: 10px;
+      }
+      .error-message code {
+        background: #333;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Monaco, Consolas, monospace;
+      }
+      .error-message ol, .error-message ul {
+        margin: 8px 0;
+        padding-left: 20px;
+      }
+      .error-message li {
+        margin: 5px 0;
+      }
+    `;
+    document.head.appendChild(style);
   }
 }
 

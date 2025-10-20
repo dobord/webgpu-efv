@@ -24,12 +24,10 @@ struct Charge {
 }
 
 struct Uniforms {
-  canvasWidth: f32,
-  canvasHeight: f32,
-  numCharges: u32,
-  numEquipotentials: u32,
-  equipotentialPrecision: f32,
-  padding: vec3f,
+  canvas: vec2f,              // canvasWidth, canvasHeight (8 bytes)
+  counts: vec2u,              // numCharges, numEquipotentials (8 bytes)  
+  equipotentialPrecision: f32, // (4 bytes)
+  _padding: vec3f,            // padding to align to 16 bytes (12 bytes)
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -57,12 +55,12 @@ fn phi2color(phi: f32) -> vec4f {
 @fragment
 fn main(@location(0) texCoord: vec2f) -> @location(0) vec4f {
   // Convert texture coordinates to world position
-  let pos = (texCoord - vec2f(0.5)) * vec2f(uniforms.canvasWidth, uniforms.canvasHeight);
+  let pos = (texCoord - vec2f(0.5)) * uniforms.canvas;
   
   var phi: f32 = 0.0;
   
   // Calculate potential from all charges
-  for (var i = 0u; i < uniforms.numCharges; i = i + 1u) {
+  for (var i = 0u; i < uniforms.counts.x; i = i + 1u) {
     let charge = charges[i];
     let dx = pos.x - charge.x;
     let dy = pos.y - charge.y;
@@ -75,7 +73,7 @@ fn main(@location(0) texCoord: vec2f) -> @location(0) vec4f {
   var color = phi2color(phi);
   
   // Draw equipotential lines
-  for (var i = 0u; i < uniforms.numEquipotentials; i = i + 1u) {
+  for (var i = 0u; i < uniforms.counts.y; i = i + 1u) {
     let targetPhi = equipotentials[i];
     let fp = abs((phi - targetPhi) / targetPhi) / uniforms.equipotentialPrecision;
     
