@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: './',
+  base: '/webgpu-efv/',
   server: {
     port: 3000,
   },

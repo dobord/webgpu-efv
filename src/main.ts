@@ -390,7 +390,7 @@ class ElectrostaticFieldVisualizer {
         </div>
       </div>
       <div style="margin: 20px 0; text-align: center;">
-        <button onclick="window.location.href='/fallback.html'" style="
+        <button onclick="window.location.href='./fallback.html'" style="
           background: #4ecdc4;
           color: #1a1a1a;
           border: none;
