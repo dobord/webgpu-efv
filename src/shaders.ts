@@ -27,7 +27,8 @@ struct Uniforms {
   canvas: vec2f,              // 8 bytes, offset 0-7
   counts: vec2u,              // 8 bytes, offset 8-15  
   equipotentialPrecision: f32, // 4 bytes, offset 16-19
-  _padding1: f32,             // 4 bytes, offset 20-23 (выравнивание до 8 байт)
+  _padding1: f32,             // 4 bytes, offset 20-23
+  _padding2: vec2f,           // 8 bytes, offset 24-31
   // Минимальный padding до кратности 16 байт = 32 байта всего
 }
 
