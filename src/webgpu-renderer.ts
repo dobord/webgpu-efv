@@ -318,12 +318,12 @@ export class WebGPURenderer {
 
     // Geometry buffers (initialized empty, will be updated when needed)
     this.geometryVertexBuffer = this.device.createBuffer({
-      size: 10000 * 36, // Space for many vertices
+      size: 20000 * 36, // Increased space for more vertices (field lines can be complex)
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
     this.geometryIndexBuffer = this.device.createBuffer({
-      size: 10000 * 2, // Space for many indices
+      size: 20000 * 2, // Increased space for more indices (40000 bytes)
       usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
     });
 
