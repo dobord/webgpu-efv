@@ -33,12 +33,19 @@ export class WebGPURenderer {
   private geometryIndexBuffer!: GPUBuffer;
   private geometryUniformBuffer!: GPUBuffer;
   private geometryBindGroup!: GPUBindGroup;
-  private geometryVertexBufferSize = 0;
-  private geometryIndexBufferSize = 0;
 
   private charges: Charge[] = [];
   private equipotentials: number[] = [];
   private equipotentialPrecision = 0.05;
+  private geometryVertexBufferSize = 0;
+  private geometryIndexBufferSize = 0;
+  private supportsUint32Index = false;
+  private indexFormat: GPUIndexFormat = 'uint16';
+  private indexByteSize = Uint16Array.BYTES_PER_ELEMENT;
+  private maxFieldLineSegments = 16000;
+  private lastChargeCount = 0;
+  private lastLineSegmentCount = 0;
+  private lineSegmentLimitHit = false;
 
   private projectionMatrix: mat4 = mat4.create();
   private viewMatrix: mat4 = mat4.create();
@@ -95,6 +102,11 @@ export class WebGPURenderer {
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Ошибка инициализации WebGPU устройства: ${errorMessage}`);
     }
+
+    this.supportsUint32Index = true;
+    this.indexFormat = 'uint32';
+    this.indexByteSize = Uint32Array.BYTES_PER_ELEMENT;
+    this.maxFieldLineSegments = Number.MAX_SAFE_INTEGER;
 
     // Configure canvas context
     this.context = this.canvas.getContext('webgpu')!;
@@ -466,11 +478,16 @@ export class WebGPURenderer {
     // Render charges
     if (showCharges && this.charges.length > 0) {
       this.renderCharges(renderPass);
+    } else {
+      this.lastChargeCount = this.charges.length;
     }
 
     // Render field lines
     if (showLines && this.charges.length > 0) {
       this.renderFieldLines(renderPass);
+    } else {
+      this.lastLineSegmentCount = 0;
+      this.lineSegmentLimitHit = false;
     }
 
     renderPass.end();
@@ -503,7 +520,7 @@ export class WebGPURenderer {
     if (vertices.length > 0) {
       this.ensureGeometryBufferCapacity(
         vertices.length * Float32Array.BYTES_PER_ELEMENT,
-        indices.length * Uint32Array.BYTES_PER_ELEMENT
+        indices.length * this.indexByteSize
       );
 
       this.device.queue.writeBuffer(
@@ -514,28 +531,32 @@ export class WebGPURenderer {
       this.device.queue.writeBuffer(
         this.geometryIndexBuffer,
         0,
-        new Uint32Array(indices)
+        this.supportsUint32Index ? new Uint32Array(indices) : new Uint16Array(indices)
       );
 
       renderPass.setPipeline(this.geometryPipeline);
       renderPass.setBindGroup(0, this.geometryBindGroup);
       renderPass.setVertexBuffer(0, this.geometryVertexBuffer);
-      renderPass.setIndexBuffer(this.geometryIndexBuffer, 'uint32');
+      renderPass.setIndexBuffer(this.geometryIndexBuffer, this.indexFormat);
       renderPass.drawIndexed(indices.length);
     }
+
+    this.lastChargeCount = this.charges.length;
   }
 
   private renderFieldLines(renderPass: GPURenderPassEncoder): void {
     const vertices: number[] = [];
     const indices: number[] = [];
     let vertexCount = 0;
+    let segmentCount = 0;
+    let limitReached = false;
 
     const step = 5;
     const killZone = 4;
-    const maxSteps = 200;
-    const color = [0.8, 0.8, 0.8, 0.6]; // Более яркие и заметные линии
+    const maxSteps = this.supportsUint32Index ? 200 : 80;
+    const color = [1.0, 0.95, 0.4, 0.85];
 
-    this.charges.forEach((charge) => {
+    outer: for (const charge of this.charges) {
       const numLines = Math.round(Math.abs(charge.q) / 20) + 3;
       const sign = charge.q >= 0 ? 1 : -1;
 
@@ -580,17 +601,23 @@ export class WebGPURenderer {
           this.addLineSegment(vertices, indices, vertexCount,
             px, py, nextPx, nextPy, color, 2);
           vertexCount += 4;
+          segmentCount += 1;
 
           px = nextPx;
           py = nextPy;
+
+          if (!this.supportsUint32Index && segmentCount >= this.maxFieldLineSegments) {
+            limitReached = true;
+            continue outer;
+          }
         }
       }
-    });
+    }
 
     if (vertices.length > 0) {
       this.ensureGeometryBufferCapacity(
         vertices.length * Float32Array.BYTES_PER_ELEMENT,
-        indices.length * Uint32Array.BYTES_PER_ELEMENT
+        indices.length * this.indexByteSize
       );
 
       this.device.queue.writeBuffer(
@@ -601,14 +628,20 @@ export class WebGPURenderer {
       this.device.queue.writeBuffer(
         this.geometryIndexBuffer,
         0,
-        new Uint32Array(indices)
+        this.supportsUint32Index ? new Uint32Array(indices) : new Uint16Array(indices)
       );
 
       renderPass.setPipeline(this.geometryPipeline);
       renderPass.setBindGroup(0, this.geometryBindGroup);
       renderPass.setVertexBuffer(0, this.geometryVertexBuffer);
-      renderPass.setIndexBuffer(this.geometryIndexBuffer, 'uint32');
+      renderPass.setIndexBuffer(this.geometryIndexBuffer, this.indexFormat);
       renderPass.drawIndexed(indices.length);
+    }
+
+    this.lastLineSegmentCount = segmentCount;
+    this.lineSegmentLimitHit = limitReached;
+    if (limitReached) {
+      console.warn('Field line segment limit reached due to 16-bit index fallback.');
     }
   }
 
@@ -675,6 +708,14 @@ export class WebGPURenderer {
       });
       this.geometryIndexBufferSize = newSize;
     }
+  }
+
+  getDebugStats(): { charges: number; lineSegments: number; lineLimitHit: boolean } {
+    return {
+      charges: this.lastChargeCount,
+      lineSegments: this.lastLineSegmentCount,
+      lineLimitHit: this.lineSegmentLimitHit,
+    };
   }
 
   destroy(): void {

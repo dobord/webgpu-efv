@@ -72,6 +72,7 @@ class ElectrostaticFieldVisualizer {
   private showLinesCheckbox: HTMLInputElement;
   private showEquipotentialsCheckbox: HTMLInputElement;
   private modeSelect: HTMLSelectElement;
+  private debugStatsElement: HTMLElement | null = null;
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -83,6 +84,16 @@ class ElectrostaticFieldVisualizer {
     this.showLinesCheckbox = document.getElementById('showLines') as HTMLInputElement;
     this.showEquipotentialsCheckbox = document.getElementById('showEquipotentials') as HTMLInputElement;
     this.modeSelect = document.getElementById('mode') as HTMLSelectElement;
+    const infoPanel = document.getElementById('info');
+    if (infoPanel) {
+      const stats = document.createElement('p');
+      stats.id = 'debugStats';
+      stats.style.marginTop = '8px';
+      stats.style.opacity = '0.75';
+      stats.textContent = 'Линии: —';
+      infoPanel.appendChild(stats);
+      this.debugStatsElement = stats;
+    }
 
     this.setupEventListeners();
     this.resizeCanvas();
@@ -351,6 +362,7 @@ class ElectrostaticFieldVisualizer {
         }
 
         this.renderer.render(this.showCharges, this.showLines);
+        this.updateDebugStats();
       }
       requestAnimationFrame(render);
     };
@@ -464,6 +476,18 @@ class ElectrostaticFieldVisualizer {
       }
     `;
     document.head.appendChild(style);
+  }
+
+  private updateDebugStats(): void {
+    if (!this.renderer || !this.debugStatsElement) return;
+    const stats = this.renderer.getDebugStats();
+    const linesText = stats.lineSegments > 0
+      ? `Линии: ${stats.lineSegments}`
+      : (this.showLines ? 'Линии: нет' : 'Линии отключены');
+    const chargesText = `Заряды: ${stats.charges}`;
+    const limitText = stats.lineLimitHit ? ' (ограничение)' : '';
+    this.debugStatsElement.textContent = `${chargesText} • ${linesText}${limitText}`;
+    this.debugStatsElement.style.color = stats.lineSegments === 0 && this.showLines ? '#ff6b6b' : '#ffffff';
   }
 }
 
