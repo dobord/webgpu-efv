@@ -33,6 +33,8 @@ export class WebGPURenderer {
   private geometryIndexBuffer!: GPUBuffer;
   private geometryUniformBuffer!: GPUBuffer;
   private geometryBindGroup!: GPUBindGroup;
+  private geometryVertexBufferSize = 0;
+  private geometryIndexBufferSize = 0;
 
   private charges: Charge[] = [];
   private equipotentials: number[] = [];
@@ -321,11 +323,13 @@ export class WebGPURenderer {
       size: 2 * 1024 * 1024, // 2MB for complex field line geometry
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
+    this.geometryVertexBufferSize = 2 * 1024 * 1024;
 
     this.geometryIndexBuffer = this.device.createBuffer({
       size: 256 * 1024, // 256KB for field line indices
       usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
     });
+    this.geometryIndexBufferSize = 256 * 1024;
 
     // Uniform buffer for geometry shader (projection + view matrices)
     this.geometryUniformBuffer = this.device.createBuffer({
@@ -497,6 +501,11 @@ export class WebGPURenderer {
     });
 
     if (vertices.length > 0) {
+      this.ensureGeometryBufferCapacity(
+        vertices.length * Float32Array.BYTES_PER_ELEMENT,
+        indices.length * Uint32Array.BYTES_PER_ELEMENT
+      );
+
       this.device.queue.writeBuffer(
         this.geometryVertexBuffer,
         0,
@@ -505,13 +514,13 @@ export class WebGPURenderer {
       this.device.queue.writeBuffer(
         this.geometryIndexBuffer,
         0,
-        new Uint16Array(indices)
+        new Uint32Array(indices)
       );
 
       renderPass.setPipeline(this.geometryPipeline);
       renderPass.setBindGroup(0, this.geometryBindGroup);
       renderPass.setVertexBuffer(0, this.geometryVertexBuffer);
-      renderPass.setIndexBuffer(this.geometryIndexBuffer, 'uint16');
+      renderPass.setIndexBuffer(this.geometryIndexBuffer, 'uint32');
       renderPass.drawIndexed(indices.length);
     }
   }
@@ -579,6 +588,11 @@ export class WebGPURenderer {
     });
 
     if (vertices.length > 0) {
+      this.ensureGeometryBufferCapacity(
+        vertices.length * Float32Array.BYTES_PER_ELEMENT,
+        indices.length * Uint32Array.BYTES_PER_ELEMENT
+      );
+
       this.device.queue.writeBuffer(
         this.geometryVertexBuffer,
         0,
@@ -587,13 +601,13 @@ export class WebGPURenderer {
       this.device.queue.writeBuffer(
         this.geometryIndexBuffer,
         0,
-        new Uint16Array(indices)
+        new Uint32Array(indices)
       );
 
       renderPass.setPipeline(this.geometryPipeline);
       renderPass.setBindGroup(0, this.geometryBindGroup);
       renderPass.setVertexBuffer(0, this.geometryVertexBuffer);
-      renderPass.setIndexBuffer(this.geometryIndexBuffer, 'uint16');
+      renderPass.setIndexBuffer(this.geometryIndexBuffer, 'uint32');
       renderPass.drawIndexed(indices.length);
     }
   }
@@ -627,6 +641,40 @@ export class WebGPURenderer {
       baseIdx + 0, baseIdx + 1, baseIdx + 2,
       baseIdx + 0, baseIdx + 2, baseIdx + 3
     );
+  }
+
+  private ensureGeometryBufferCapacity(vertexByteLength: number, indexByteLength: number): void {
+    const align = (size: number) => Math.max(256, Math.ceil(size / 256) * 256);
+
+    if (vertexByteLength > this.geometryVertexBufferSize) {
+      let newSize = this.geometryVertexBufferSize || 256;
+      while (newSize < vertexByteLength) {
+        newSize *= 2;
+      }
+      newSize = align(newSize);
+
+      this.geometryVertexBuffer?.destroy();
+      this.geometryVertexBuffer = this.device.createBuffer({
+        size: newSize,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+      this.geometryVertexBufferSize = newSize;
+    }
+
+    if (indexByteLength > this.geometryIndexBufferSize) {
+      let newSize = this.geometryIndexBufferSize || 256;
+      while (newSize < indexByteLength) {
+        newSize *= 2;
+      }
+      newSize = align(newSize);
+
+      this.geometryIndexBuffer?.destroy();
+      this.geometryIndexBuffer = this.device.createBuffer({
+        size: newSize,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+      });
+      this.geometryIndexBufferSize = newSize;
+    }
   }
 
   destroy(): void {
