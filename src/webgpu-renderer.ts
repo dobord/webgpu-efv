@@ -46,6 +46,7 @@ export class WebGPURenderer {
   private lastChargeCount = 0;
   private lastLineSegmentCount = 0;
   private lineSegmentLimitHit = false;
+  private lineBounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
   private projectionMatrix: mat4 = mat4.create();
   private viewMatrix: mat4 = mat4.create();
@@ -91,8 +92,16 @@ export class WebGPURenderer {
       throw new Error('Не удалось получить GPU адаптер. Возможно, ваша видеокарта не поддерживает WebGPU или драйверы устарели.');
     }
 
+    const uint32Feature = 'uint32-index-buffer' as unknown as GPUFeatureName;
+    const requiredFeatures: GPUFeatureName[] = [];
+    if (adapter.features?.has(uint32Feature)) {
+      requiredFeatures.push(uint32Feature);
+    }
+
     try {
-      this.device = await adapter.requestDevice();
+      this.device = await adapter.requestDevice(
+        requiredFeatures.length > 0 ? { requiredFeatures } : {}
+      );
     } catch (error) {
       if (error instanceof DOMException) {
         if (error.message.includes('blocklist') || error.message.includes('blocked')) {
@@ -103,10 +112,17 @@ export class WebGPURenderer {
       throw new Error(`Ошибка инициализации WebGPU устройства: ${errorMessage}`);
     }
 
-    this.supportsUint32Index = true;
-    this.indexFormat = 'uint32';
-    this.indexByteSize = Uint32Array.BYTES_PER_ELEMENT;
-    this.maxFieldLineSegments = Number.MAX_SAFE_INTEGER;
+    this.supportsUint32Index = this.device.features?.has(uint32Feature) ?? false;
+    if (this.supportsUint32Index) {
+      this.indexFormat = 'uint32';
+      this.indexByteSize = Uint32Array.BYTES_PER_ELEMENT;
+      this.maxFieldLineSegments = Number.MAX_SAFE_INTEGER;
+    } else {
+      this.indexFormat = 'uint16';
+      this.indexByteSize = Uint16Array.BYTES_PER_ELEMENT;
+      this.maxFieldLineSegments = 16000;
+      console.warn('WebGPU: uint32 index buffers unsupported; falling back to 16-bit indices. Field line detail may be reduced.');
+    }
 
     // Configure canvas context
     this.context = this.canvas.getContext('webgpu')!;
@@ -550,11 +566,15 @@ export class WebGPURenderer {
     let vertexCount = 0;
     let segmentCount = 0;
     let limitReached = false;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
 
     const step = 5;
     const killZone = 4;
-    const maxSteps = this.supportsUint32Index ? 200 : 80;
-    const color = [1.0, 0.95, 0.4, 0.85];
+    const maxSteps = this.supportsUint32Index ? 220 : 100;
+    const color = [1.0, 1.0, 1.0, 1.0];
 
     outer: for (const charge of this.charges) {
       const numLines = Math.round(Math.abs(charge.q) / 20) + 3;
@@ -598,10 +618,15 @@ export class WebGPURenderer {
           const nextPy = py + ey;
 
           // Draw line segment
-          this.addLineSegment(vertices, indices, vertexCount,
-            px, py, nextPx, nextPy, color, 2);
+            this.addLineSegment(vertices, indices, vertexCount,
+              px, py, nextPx, nextPy, color, 12);
           vertexCount += 4;
           segmentCount += 1;
+
+          minX = Math.min(minX, px, nextPx);
+          maxX = Math.max(maxX, px, nextPx);
+          minY = Math.min(minY, py, nextPy);
+          maxY = Math.max(maxY, py, nextPy);
 
           px = nextPx;
           py = nextPy;
@@ -640,6 +665,10 @@ export class WebGPURenderer {
 
     this.lastLineSegmentCount = segmentCount;
     this.lineSegmentLimitHit = limitReached;
+    if (segmentCount === 0) {
+      minX = maxX = minY = maxY = 0;
+    }
+    this.lineBounds = { minX, maxX, minY, maxY };
     if (limitReached) {
       console.warn('Field line segment limit reached due to 16-bit index fallback.');
     }
@@ -710,11 +739,19 @@ export class WebGPURenderer {
     }
   }
 
-  getDebugStats(): { charges: number; lineSegments: number; lineLimitHit: boolean } {
+  getDebugStats(): {
+    charges: number;
+    lineSegments: number;
+    lineLimitHit: boolean;
+    supportsUint32: boolean;
+    lineBounds: { minX: number; maxX: number; minY: number; maxY: number };
+  } {
     return {
       charges: this.lastChargeCount,
       lineSegments: this.lastLineSegmentCount,
       lineLimitHit: this.lineSegmentLimitHit,
+      supportsUint32: this.supportsUint32Index,
+      lineBounds: this.lineBounds,
     };
   }
 

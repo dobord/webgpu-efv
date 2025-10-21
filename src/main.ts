@@ -486,7 +486,14 @@ class ElectrostaticFieldVisualizer {
       : (this.showLines ? 'Линии: нет' : 'Линии отключены');
     const chargesText = `Заряды: ${stats.charges}`;
     const limitText = stats.lineLimitHit ? ' (ограничение)' : '';
-    this.debugStatsElement.textContent = `${chargesText} • ${linesText}${limitText}`;
+    let boundsText = '';
+    if (stats.lineSegments > 0) {
+      const { minX, maxX, minY, maxY } = stats.lineBounds;
+      const format = (value: number) => Math.round(value).toString();
+      boundsText = ` • X[${format(minX)}, ${format(maxX)}] Y[${format(minY)}, ${format(maxY)}]`;
+    }
+    const featureText = stats.supportsUint32 ? '' : ' • idx16';
+    this.debugStatsElement.textContent = `${chargesText} • ${linesText}${limitText}${boundsText}${featureText}`;
     this.debugStatsElement.style.color = stats.lineSegments === 0 && this.showLines ? '#ff6b6b' : '#ffffff';
   }
 }
