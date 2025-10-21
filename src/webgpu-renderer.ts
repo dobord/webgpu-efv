@@ -47,6 +47,7 @@ export class WebGPURenderer {
   private lastLineSegmentCount = 0;
   private lineSegmentLimitHit = false;
   private lineBounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  private debugTestLine = true;
 
   private projectionMatrix: mat4 = mat4.create();
   private viewMatrix: mat4 = mat4.create();
@@ -637,6 +638,23 @@ export class WebGPURenderer {
           }
         }
       }
+    }
+
+    if (this.debugTestLine) {
+      const debugColor = [1.0, 0.0, 0.0, 1.0];
+      const debugHalfWidth = 25;
+      const startX = -200;
+      const startY = -200;
+      const endX = 200;
+      const endY = 200;
+      this.addLineSegment(vertices, indices, vertexCount,
+        startX, startY, endX, endY, debugColor, debugHalfWidth);
+      vertexCount += 4;
+      segmentCount += 1;
+      minX = Math.min(minX, startX, endX);
+      maxX = Math.max(maxX, startX, endX);
+      minY = Math.min(minY, startY, endY);
+      maxY = Math.max(maxY, startY, endY);
     }
 
     if (vertices.length > 0) {
